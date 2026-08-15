@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module>
+    <inherits name="com.google.gwt.user.User"/>
+    <inherits name="com.google.gwt.http.HTTP"/>
+    <inherits name="com.google.gwt.webgl.WebGL"/>
+    <inherits name="io.anuke.gwtref.GwtReflect"/>
+
+    <!-- The historical backend is copied under arc/backend/gwt by bootstrap. -->
+    <public path="gwt/resources"/>
+    <super-source path="gwt/emu"/>
+    <source path="gwt">
+        <exclude name="**/emu/**"/>
+        <exclude name="**/theme/**"/>
+        <exclude name="**/PreloaderBundleGenerator.java"/>
+        <exclude name="**/FileWrapper.java"/>
+        <exclude name="GwtAudio.java"/>
+        <exclude name="GwtMusic.java"/>
+        <exclude name="GwtSound.java"/>
+    </source>
+
+    <define-configuration-property name="arc.assetpath" is-multi-valued="false"/>
+    <define-configuration-property name="arc.assetfilterclass" is-multi-valued="false"/>
+    <define-configuration-property name="arc.assetoutputpath" is-multi-valued="false"/>
+    <define-configuration-property name="arc.files.classpath" is-multi-valued="true"/>
+
+    <generate-with class="arc.backend.gwt.preloader.PreloaderBundleGenerator">
+        <when-type-assignable class="arc.backend.gwt.preloader.PreloaderBundle"/>
+    </generate-with>
+</module>

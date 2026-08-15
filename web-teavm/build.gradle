@@ -1,0 +1,135 @@
+plugins{
+    id "java"
+    id "org.teavm" version "0.15.0"
+}
+
+repositories{ mavenCentral() }
+
+dependencies{
+    implementation project(":core")
+    implementation teavm.libs.jsoApis
+    // Compiler extension types used by the reflection/substitution policies.
+    implementation "org.teavm:teavm-extension-spi:0.15.0"
+    // @Autoregistered is compile-time SPI generation, not runtime magic.
+    annotationProcessor "org.teavm:teavm-extension-annotation-processor:0.15.0"
+}
+
+sourceSets{
+    fontTools{
+        java.srcDirs = ["fonttools"]
+        resources.srcDirs = []
+    }
+}
+
+dependencies{
+    fontToolsImplementation project(":core")
+    fontToolsImplementation project(":tools")
+}
+
+def bakedFontsDir = file("$buildDir/generated-webfonts")
+def stagedAssetsDir = file("$buildDir/web-assets")
+def distDir = file("$buildDir/dist")
+
+tasks.register("bakeWebFonts", JavaExec){
+    dependsOn("compileFontToolsJava", ":tools:classes")
+    group = "web"
+    mainClass = "mindustry.web.tools.WebFontBaker"
+    classpath = sourceSets.fontTools.runtimeClasspath
+    args(file("${rootDir}/core/assets").absolutePath, bakedFontsDir.absolutePath)
+}
+
+tasks.register("stageWebAssets", Sync){
+    // The source repository does not track generated sprites/sprites.aatls.
+    // Run Mindustry's real JVM sprite pipeline before snapshotting browser assets.
+    dependsOn("bakeWebFonts", ":core:classes", ":tools:pack")
+    group = "web"
+    from(file("${rootDir}/core/assets")){
+        // Audio(false) never reads these files. Keep them out of the monolithic
+        // first-boot pack; the licensed originals remain in the source checkout
+        // for the later WebAudio milestone.
+        exclude("music/**", "sounds/**")
+    }
+    from(bakedFontsDir){ into("webfonts") }
+    into(stagedAssetsDir)
+}
+
+tasks.register("verifyPackedGameAssets"){
+    dependsOn("stageWebAssets")
+    group = "verification"
+    doLast{
+        def required = [
+            "sprites/sprites.aatls",
+            "sprites/fallback/sprites.aatls",
+            "version.properties",
+            "locales",
+            "basepartnames",
+            "icons/icons.properties"
+        ]
+        required.each{ rel ->
+            def file = new File(stagedAssetsDir, rel)
+            if(!file.isFile() || file.length() == 0){
+                throw new GradleException("Required generated/packaged Mindustry asset is missing: ${file}")
+            }
+        }
+    }
+}
+
+tasks.register("packWebAssets", Exec){
+    dependsOn("stageWebAssets", "verifyPackedGameAssets")
+    group = "web"
+    inputs.dir(stagedAssetsDir)
+    outputs.file(file("$buildDir/assetpack.bin"))
+    commandLine "python3", file("${projectDir}/pack_assets.py").absolutePath,
+        stagedAssetsDir.absolutePath, file("$buildDir/assetpack.bin").absolutePath
+}
+
+teavm{
+    all{
+        mainClass = "mindustry.web.teavm.WebLauncher"
+        debugInformation = true
+        fastGlobalAnalysis = false
+        processMemory = 4096
+    }
+    js{
+        targetFileName = "mindustry.js"
+        entryPointName = "mindustryMain"
+        moduleType = org.teavm.gradle.api.JSModuleType.NONE
+        sourceMap = true
+        obfuscated = false
+        strict = true
+        optimization = org.teavm.gradle.api.OptimizationLevel.BALANCED
+    }
+}
+
+tasks.register("verifyTeaVMExtensions"){
+    dependsOn("compileJava")
+    group = "verification"
+    doLast{
+        def services = file("$buildDir/classes/java/main/META-INF/services")
+        def expected = [
+            "org.teavm.extension.spi.reflection.ReflectionPolicy": "mindustry.web.teavm.compiler.MindustryReflectionPolicy",
+            "org.teavm.extension.spi.substitution.SubstitutionPolicy": "mindustry.web.teavm.compiler.MindustrySubstitutionPolicy"
+        ]
+        expected.each{ service, provider ->
+            def f = new File(services, service)
+            if(!f.isFile()) throw new GradleException("TeaVM extension service file was not generated: ${service}")
+            if(!f.getText("UTF-8").readLines().contains(provider)){
+                throw new GradleException("TeaVM extension provider is missing from ${service}: ${provider}")
+            }
+        }
+    }
+}
+
+tasks.named("generateJavaScript"){
+    dependsOn(":core:classes", "packWebAssets", "verifyTeaVMExtensions")
+}
+
+tasks.register("distWeb", Sync){
+    dependsOn("generateJavaScript", "packWebAssets")
+    from("webapp")
+    from(file("$buildDir/generated/teavm/js")){
+        include("mindustry.js", "mindustry.js.map", "**/*.teavmdbg")
+    }
+    from(file("$buildDir/assetpack.bin"))
+    into(distDir)
+}

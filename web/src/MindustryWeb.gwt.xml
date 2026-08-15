@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module rename-to="mindustry">
+    <inherits name="com.google.gwt.user.User"/>
+    <inherits name="com.google.gwt.http.HTTP"/>
+    <inherits name="arc.ArcCore"/>
+    <inherits name="arc.backend.ArcBackendGwt"/>
+    <inherits name="mindustry.MindustryCore"/>
+
+    <super-source path="websuper"/>
+
+    <entry-point class="mindustry.web.WebLauncher"/>
+    <set-configuration-property name="xsiframe.failIfScriptTag" value="FALSE"/>
+    <set-configuration-property name="arc.assetpath" value="build/web-assets"/>
+    <set-configuration-property name="arc.assetoutputpath" value="build/gwt/"/>
+</module>

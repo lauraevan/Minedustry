@@ -1,0 +1,123 @@
+plugins{
+    id "java"
+}
+
+def gwtVersion = "2.13.1"
+def arcRoot = file("${rootDir}/../Arc")
+
+sourceSets.main.java.srcDirs = ["src"]
+sourceSets.main.resources.srcDirs = ["src", "webapp"]
+sourceSets{
+    fontTools{
+        java.srcDirs = ["fonttools"]
+        resources.srcDirs = []
+    }
+}
+
+configurations{
+    gwtCompiler
+}
+
+dependencies{
+    implementation project(":core")
+    implementation "org.gwtproject:gwt-user:${gwtVersion}"
+    compileOnly "org.gwtproject:gwt-dev:${gwtVersion}"
+
+    gwtCompiler "org.gwtproject:gwt-dev:${gwtVersion}"
+    gwtCompiler "org.gwtproject:gwt-user:${gwtVersion}"
+
+    // JVM-only tooling used before GWT translation. :tools contributes the
+    // desktop FreeType native at runtime; :core exposes the current Arc APIs.
+    fontToolsImplementation project(":core")
+    fontToolsImplementation project(":tools")
+}
+
+def generatedMindustrySources = [
+    file("${rootDir}/core/build/generated/sources/annotationProcessor/java/main"),
+    file("${rootDir}/core/build/generated/source/kapt/main"),
+    file("${rootDir}/core/build/generated/sources/kapt/main")
+]
+
+def arcSourceRoots = [
+    "arc-core/src",
+    "extensions/flabel/src",
+    "extensions/arcnet/src",
+    "extensions/fx/src",
+    "extensions/g3d/src",
+    "extensions/freetype/src"
+].collect{ new File(arcRoot, it) }.findAll{ it.exists() }
+
+def bakedFontsDir = file("$buildDir/generated-webfonts")
+def stagedAssetsDir = file("$buildDir/web-assets")
+
+tasks.register("bakeWebFonts", JavaExec){
+    dependsOn("compileFontToolsJava", ":tools:classes")
+    group = "web"
+    description = "Bake current Mindustry FreeType fonts to browser-safe BMFont pages."
+
+    mainClass = "mindustry.web.tools.WebFontBaker"
+    classpath = sourceSets.fontTools.runtimeClasspath
+    args(
+        file("${rootDir}/core/assets").absolutePath,
+        bakedFontsDir.absolutePath
+    )
+}
+
+tasks.register("stageWebAssets", Sync){
+    dependsOn("bakeWebFonts")
+    group = "web"
+    description = "Stage current Mindustry assets plus generated browser fonts."
+
+    from(file("${rootDir}/core/assets"))
+    from(bakedFontsDir){
+        into("webfonts")
+    }
+    into(stagedAssetsDir)
+}
+
+tasks.register("compileGwt", JavaExec){
+    dependsOn(":core:classes", "stageWebAssets")
+
+    group = "web"
+    description = "Compile the Mindustry browser target with GWT 2.13.1."
+
+    mainClass = "com.google.gwt.dev.Compiler"
+    workingDir projectDir
+
+    // GWT needs translatable Java source on its classpath, not only JVM bytecode.
+    classpath = configurations.gwtCompiler +
+        sourceSets.main.runtimeClasspath +
+        files(sourceSets.main.java.srcDirs) +
+        files(project(":core").sourceSets.main.allJava.srcDirs) +
+        files(project(":core").sourceSets.main.output) +
+        files(generatedMindustrySources) +
+        files(arcSourceRoots)
+
+    def out = file("$buildDir/gwt")
+    doFirst{
+        out.mkdirs()
+        if(!arcRoot.exists()){
+            throw new GradleException(
+                "Expected a sibling Arc checkout at ${arcRoot}. Run the supplied bootstrap.sh."
+            )
+        }
+    }
+
+    args(
+        "-war", out.absolutePath,
+        "-style", "OBFUSCATED",
+        "-optimize", "9",
+        "-sourceLevel", "17",
+        "-logLevel", "INFO",
+        "MindustryWeb"
+    )
+
+    jvmArgs("-Xmx4G")
+}
+
+tasks.register("distWeb", Copy){
+    dependsOn("compileGwt")
+    from("$buildDir/gwt")
+    from("webapp")
+    into("$buildDir/dist")
+}

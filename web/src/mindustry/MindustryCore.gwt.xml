@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module>
+    <!-- Current Mindustry core + generated Java sources are added to the compiler classpath. -->
+    <source path="">
+        <!-- Desktop/iOS/Android launchers live in separate Gradle modules, not here. -->
+    </source>
+</module>

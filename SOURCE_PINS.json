@@ -1,0 +1,21 @@
+{
+  "mindustry": {
+    "repo": "https://github.com/Anuken/Mindustry",
+    "sha": "e8bf80a1d2d5e9cf339c2fbc2a82444bf6d779d7"
+  },
+  "arc": {
+    "repo": "https://github.com/Anuken/Arc",
+    "sha": "55553d17bef8bb32362c8038999a19427f508ef0",
+    "last_revision_with_gwt_backend": "2303ab81bb76a973db8885f3ba14b6515782a1a4"
+  },
+  "gwt": "2.13.1",
+  "teavm": "0.15.0",
+  "official_bleeding_edge_reference": {
+    "repository": "Anuken/MindustryBuilds",
+    "build": 27630,
+    "mindustry_sha": "e8bf80a1d2d5e9cf339c2fbc2a82444bf6d779d7",
+    "desktop_asset": "Mindustry-BE-Desktop-27630.jar",
+    "size_bytes": 86664144,
+    "sha256": "2156948c2a6047ba00517663521d8bb7ae65dc336d6d823e21662631bdaf180d"
+  }
+}

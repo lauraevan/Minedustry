@@ -1,0 +1,10 @@
+# Upstream clones + build outputs produced by bootstrap.sh (never committed)
+work/
+kit/
+*.log
+build/
+.gradle/
+__pycache__/
+*.pyc
+*.zip
+.DS_Store
