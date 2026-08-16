@@ -47,9 +47,13 @@ cd mindustry-web-port-kit
 
 In a sandboxed/CI network where `jitpack.io` is blocked (Gradle reports HTTP 403 for
 `com.github.Anuken:rhino`), first run `scripts/build_local_deps.sh ./work` to build that
-dependency from GitHub source into your local Maven repo, then run `bootstrap.sh`. See
-`PROGRESS_REPORT.md` for the full list of verified build stages and the current
-TeaVM-compiler frontier.
+dependency from GitHub source into your local Maven repo, then run `bootstrap.sh`.
+
+**Build machine RAM:** the TeaVM whole-program compile of the full game peaks at ~15 GB
+of live heap. Use a machine with **~24 GB RAM** and give the compile ~20 GB (the kit sets
+TeaVM `processMemory = 20480`). Standard 7 GB CI runners are too small. See
+`PROGRESS_REPORT.md` for the full list of verified build stages, all the fixes applied,
+and the measured memory profile.
 
 If the compile gate succeeds, output is:
 

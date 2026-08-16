@@ -86,17 +86,31 @@ tasks.register("packWebAssets", Exec){
 teavm{
     all{
         mainClass = "mindustry.web.teavm.WebLauncher"
-        debugInformation = true
-        fastGlobalAnalysis = false
-        processMemory = 4096
+        // Whole-game codegen is the memory bottleneck. Measured peak live heap for the full
+        // current Mindustry program is ~15 GB even with every footprint reduction below, so
+        // the TeaVM compile needs a build machine with ~24 GB RAM (give the process ~20 GB).
+        // It runs out-of-process with a large dedicated heap so the optimizer/codegen has
+        // room independent of the Gradle daemon; raise processMemory to match your machine.
+        // Footprint reductions applied here (all lower peak memory):
+        //  - fastGlobalAnalysis: lighter, conservative dependency analysis
+        //  - debugInformation/sourceMap off: these hold the largest side tables in memory
+        //  - obfuscated + BALANCED: a smaller compiled program -> smaller codegen structure
+        // On a machine with plenty of RAM, set fastGlobalAnalysis=false and re-enable debug
+        // info + source maps for smaller, more debuggable output.
+        debugInformation = false
+        fastGlobalAnalysis = true
+        outOfProcess = true
+        processMemory = 20480
     }
     js{
         targetFileName = "mindustry.js"
         entryPointName = "mindustryMain"
         moduleType = org.teavm.gradle.api.JSModuleType.NONE
-        sourceMap = true
-        obfuscated = false
+        sourceMap = false
+        obfuscated = true
         strict = true
+        // BALANCED yields a much smaller compiled program than NONE, which is what the
+        // codegen phase holds in memory — the single biggest lever on peak heap here.
         optimization = org.teavm.gradle.api.OptimizationLevel.BALANCED
     }
 }
