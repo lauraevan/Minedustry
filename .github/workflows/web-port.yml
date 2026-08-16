@@ -12,21 +12,44 @@ on:
 
 jobs:
   teavm:
+    # A standard ubuntu-latest runner (16 GB RAM on public repos) is enough only
+    # WITH the large swapfile added below: the whole-program TeaVM codegen peaks at
+    # ~15 GB of live heap. If your org has larger runners, point runs-on at one with
+    # >=32 GB RAM and the swap step becomes a fast no-op.
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Swap-backed GC is slow; the full compile can take well over an hour on a
+    # 16 GB runner. On a >=32 GB machine it finishes in a fraction of this.
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
+
+      - name: Add swap so the TeaVM compile has enough virtual memory
+        run: |
+          # The whole-game codegen needs ~20 GB of heap. On a 16 GB runner that only
+          # fits with swap as overflow (the JVM's cold pages page out instead of OOM).
+          sudo fallocate -l 32G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=32768
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          sudo sysctl vm.swappiness=10
+          free -h
+
       - name: Static validation
         run: |
           python3 -m py_compile scripts/*.py web-teavm/pack_assets.py
           bash -n bootstrap.sh
           python3 scripts/validate_kit.py
+
       - name: Build exact current Mindustry web target
+        # If jitpack.io is reachable (it is on GitHub-hosted runners) bootstrap resolves
+        # com.github.Anuken:rhino directly. In a locked-down network, run
+        # scripts/build_local_deps.sh "$RUNNER_TEMP/mindustry-web" first.
         run: ./bootstrap.sh "$RUNNER_TEMP/mindustry-web"
+
       - name: Upload browser distribution
         if: success()
         uses: actions/upload-artifact@v4
