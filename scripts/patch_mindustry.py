@@ -816,3 +816,30 @@ if imagepacker_path.exists():
         "        ArcNativesLoader.load();",
         "ImagePacker installs the shared executor for headless sprite generation",
     )
+
+# TeaVM's class library lacks java.util.concurrent.ExecutorService and
+# java.lang.Class.isAnonymousClass(). With enough compile memory TeaVM ran the whole
+# program and flagged these as unresolved on reachable (but not first-boot-critical) paths.
+# Dispatch the async submits on the app loop (Core.app.post) and treat the anonymous-class
+# check as false, so the whole-program compile resolves and emits the browser bundle.
+maps_path = repo / "core/src/mindustry/maps/Maps.java"
+maps_text = maps_path.read_text(encoding="utf-8")
+if "mainExecutor.submit(() -> {" in maps_text:
+    # Maps has two: createAllPreviews and createNewPreview.
+    maps_path.write_text(maps_text.replace("mainExecutor.submit(() -> {", "Core.app.post(() -> {"), encoding="utf-8")
+    print("patched: Maps preview writes dispatched on app loop (no ExecutorService)")
+elif "Core.app.post(() -> {" not in maps_text:
+    raise SystemExit("error: expected Maps mainExecutor.submit was not found")
+
+exact_replace(
+    repo / "core/src/mindustry/ui/dialogs/ModBrowserDialog.java",
+    "mainExecutor.submit(() -> {", "Core.app.post(() -> {",
+    "ModBrowserDialog cached-icon load on app loop (no ExecutorService)")
+exact_replace(
+    repo / "core/src/mindustry/entities/abilities/Ability.java",
+    "type.isAnonymousClass()", "false",
+    "Ability.getBundle avoids Class.isAnonymousClass (absent in TeaVM)")
+exact_replace(
+    repo / "core/src/mindustry/ui/dialogs/ContentInfoDialog.java",
+    "contentClass.isAnonymousClass()", "false",
+    "ContentInfoDialog avoids Class.isAnonymousClass (absent in TeaVM)")

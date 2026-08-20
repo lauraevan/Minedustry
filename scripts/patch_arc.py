@@ -61,3 +61,20 @@ else:
     text = text.replace(old_assets, new_assets, 1)
 asset_manager.write_text(text, encoding="utf-8")
 print("patched Arc AssetManager: browser reuses backend executor")
+
+# TeaVM's class library has no java.util.concurrent.ExecutorService. Arc's Settings backup
+# save spins up a "Settings Backup" worker thread and submits to it; on the browser there
+# is no thread pool and the type is unresolved. Dispatch the backup on the app loop instead
+# (Core.app.post), which drops both the Threads.executor call and the ExecutorService.submit.
+settings = root / "arc-core/src/arc/Settings.java"
+settings_text = settings.read_text(encoding="utf-8")
+old_backup = ('            if(executor == null) executor = Threads.executor("Settings Backup", 1);\n'
+              '            executor.submit(() -> {')
+new_backup = '            Core.app.post(() -> {'
+if old_backup not in settings_text:
+    if new_backup not in settings_text:
+        raise SystemExit("error: pinned Arc Settings backup executor block was not found")
+    print("already patched: Arc Settings backup on app loop")
+else:
+    settings.write_text(settings_text.replace(old_backup, new_backup, 1), encoding="utf-8")
+    print("patched Arc Settings: backup dispatched on app loop (no ExecutorService)")
