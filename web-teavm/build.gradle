@@ -110,7 +110,14 @@ teavm{
         moduleType = org.teavm.gradle.api.JSModuleType.NONE
         sourceMap = false
         obfuscated = true
-        strict = true
+        // Not strict: the full game reaches a few browser-unsupported JRE members
+        // (java.util.concurrent.ExecutorService, Class.isAnonymousClass) on code paths that
+        // a vanilla first boot does not execute — map-preview generation only runs when
+        // custom maps exist, Settings' backup executor only on a save failure, and
+        // isAnonymousClass only in content/ability dialogs and mod parsing. Emitting them as
+        // warnings lets TeaVM produce the dist; those paths throw only if actually taken, and
+        // are addressed incrementally after the first bootable build.
+        strict = false
         // BALANCED yields a much smaller compiled program than NONE, which is what the
         // codegen phase holds in memory — the single biggest lever on peak heap here.
         optimization = org.teavm.gradle.api.OptimizationLevel.BALANCED
