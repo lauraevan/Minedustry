@@ -2,6 +2,10 @@ name: Mindustry web port compile
 
 on:
   workflow_dispatch:
+    inputs:
+      runner:
+        description: "Runner label (use a >=32 GB runner if you have one; ubuntu-latest works via swap but is slow)"
+        default: "ubuntu-latest"
   push:
     paths:
       - "bootstrap.sh"
@@ -10,16 +14,22 @@ on:
       - "web/**"
       - "SOURCE_PINS.json"
 
+# Needed for the deploy-to-Pages job.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
-  teavm:
-    # A standard ubuntu-latest runner (16 GB RAM on public repos) is enough only
-    # WITH the large swapfile added below: the whole-program TeaVM codegen peaks at
-    # ~15 GB of live heap. If your org has larger runners, point runs-on at one with
-    # >=32 GB RAM and the swap step becomes a fast no-op.
-    runs-on: ubuntu-latest
-    # Swap-backed GC is slow; the full compile can take well over an hour on a
-    # 16 GB runner. On a >=32 GB machine it finishes in a fraction of this.
-    timeout-minutes: 300
+  build:
+    runs-on: ${{ github.event.inputs.runner || 'ubuntu-latest' }}
+    # Swap-backed GC is slow; on a 16 GB runner the full compile can take a long time.
+    # On a >=32 GB runner it finishes in a fraction of this.
+    timeout-minutes: 330
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -29,9 +39,9 @@ jobs:
 
       - name: Add swap so the TeaVM compile has enough virtual memory
         run: |
-          # The whole-game codegen needs ~20 GB of heap. On a 16 GB runner that only
+          # The whole-game codegen needs ~20-28 GB of heap. On a 16 GB runner that only
           # fits with swap as overflow (the JVM's cold pages page out instead of OOM).
-          sudo fallocate -l 32G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=32768
+          sudo fallocate -l 40G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=40960
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
@@ -45,15 +55,32 @@ jobs:
           python3 scripts/validate_kit.py
 
       - name: Build exact current Mindustry web target
-        # If jitpack.io is reachable (it is on GitHub-hosted runners) bootstrap resolves
-        # com.github.Anuken:rhino directly. In a locked-down network, run
-        # scripts/build_local_deps.sh "$RUNNER_TEMP/mindustry-web" first.
+        # jitpack.io is reachable on GitHub runners, so bootstrap resolves rhino directly.
         run: ./bootstrap.sh "$RUNNER_TEMP/mindustry-web"
 
-      - name: Upload browser distribution
+      - name: Upload browser distribution artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: mindustry-web-dist
           path: ${{ runner.temp }}/mindustry-web/Mindustry/web-teavm/build/dist
           if-no-files-found: error
+
+      - name: Package dist for GitHub Pages
+        if: success()
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/mindustry-web/Mindustry/web-teavm/build/dist
+
+  # Publishes the built dist to a live URL. Enable Pages once in the repo:
+  # Settings -> Pages -> Source: "GitHub Actions".
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
