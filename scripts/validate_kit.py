@@ -58,10 +58,15 @@ check("Real DataPatcher retained",
 check("TeaVM substitution installer agrees", "DataPatcher.java" not in read("scripts/install_teavm_substitutions.py"))
 
 reflection = read("web-teavm/src/main/java/mindustry/web/teavm/compiler/MindustryReflectionPolicy.java")
-check("Arc reflective fields", 'selectPackage("arc", true)' in reflection and '.reflectableFields(field -> true)' in reflection)
-check("Mindustry reflective fields", 'selectPackage("mindustry", true)' in reflection and reflection.count('.reflectableFields(field -> true)') >= 2)
+check("Arc reflective fields", 'inPackageSafe("arc")' in reflection and '.reflectableFields(field -> true)' in reflection)
+check("Mindustry reflective fields", 'inPackageSafe("mindustry")' in reflection and reflection.count('.reflectableFields(field -> true)') >= 2)
 check("Reflective constructors", reflection.count('.reflectableMethods(method -> method.isConstructor())') >= 2)
-check("Class-by-name retention", reflection.count('.foundByName()') >= 2)
+# Null-safe predicate: TeaVM hands the policy a null IntrospectClass for unresolvable
+# class names, so selectPackage()/inPackage() (which dereference cls.name()) must not be
+# used. And the broad .foundByName() force-retention is intentionally removed to fit the
+# whole-program compile in memory.
+check("Null-safe reflection predicate", 'cls == null' in reflection and 'selectClasses(inPackageSafe(' in reflection)
+check("No blanket class-by-name retention", '.foundByName()' not in reflection)
 
 html = read("web-teavm/webapp/index.html")
 for token in ("assetpack.bin", "window.__mindustryAssets", "mindustryMain()", 'id="game"'):

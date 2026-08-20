@@ -58,9 +58,11 @@ jobs:
 
       - name: Static validation
         run: |
+          # Run validate_kit first: py_compile below creates __pycache__ dirs, which
+          # validate_kit's "no generated cache files bundled" check would then flag.
+          python3 scripts/validate_kit.py
           python3 -m py_compile scripts/*.py web-teavm/pack_assets.py
           bash -n bootstrap.sh
-          python3 scripts/validate_kit.py
 
       - name: Build exact current Mindustry web target
         # jitpack.io is reachable on GitHub runners, so bootstrap resolves rhino directly.
