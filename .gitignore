@@ -8,3 +8,6 @@ __pycache__/
 *.pyc
 *.zip
 .DS_Store
+
+# session-local build-grind helper (sandbox memory workaround)
+swap_watchdog.sh
